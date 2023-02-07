@@ -1,3 +1,10 @@
+defmodule Mix.Tasks.Compile.Nif do
+  def run(_args) do
+    {result, _errcode} = System.cmd("make", [])
+    IO.binwrite(result)
+  end
+end
+
 defmodule NiffSaid.MixProject do
   use Mix.Project
 
@@ -6,6 +13,7 @@ defmodule NiffSaid.MixProject do
       app: :niff_said,
       version: "0.1.0",
       elixir: "~> 1.14",
+      compilers: [:nif | Mix.compilers()],
       start_permanent: Mix.env() == :prod,
       deps: deps()
     ]
