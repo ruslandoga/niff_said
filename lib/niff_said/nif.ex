@@ -5,7 +5,7 @@ defmodule NiffSaid.Nif do
     :ok = :erlang.load_nif('./priv/nif', 0)
   end
 
-  def sum(_, _) do
-    :erlang.nif_error(:not_loaded)
-  end
+  def sum(_, _), do: :erlang.nif_error(:not_loaded)
+  def create(_), do: :erlang.nif_error(:not_loaded)
+  def fetch(_), do: :erlang.nif_error(:not_loaded)
 end
