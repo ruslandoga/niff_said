@@ -2,75 +2,69 @@ const e = @cImport(@cInclude("erl_nif.h"));
 const std = @import("std");
 
 var __resource__: *e.ErlNifResourceType = undefined;
-
-const Resource = struct {
-    value: c_int,
-};
+const Error = error{FunctionClauseError};
+const Resource = struct { value: c_int };
 
 export fn sum(env: ?*e.ErlNifEnv, _: c_int, argv: [*c]const e.ERL_NIF_TERM) e.ERL_NIF_TERM {
-    var a: i32 = undefined;
-    var b: i32 = undefined;
-
-    _ = e.enif_get_int(env, argv[0], &a);
-    _ = e.enif_get_int(env, argv[1], &b);
-
+    var a: i32 = get_int(env, argv[0]) catch return e.enif_make_badarg(env);
+    var b: i32 = get_int(env, argv[1]) catch return e.enif_make_badarg(env);
     return e.enif_make_int(env, a + b);
 }
 
 export fn create0(env: ?*e.ErlNifEnv, _: c_int, _: [*c]const e.ERL_NIF_TERM) e.ERL_NIF_TERM {
-    var ptr: ?*anyopaque = e.enif_alloc_resource(__resource__, @sizeOf(Resource));
-    var resource: *Resource = @ptrCast(*Resource, @alignCast(@alignOf(*Resource), ptr));
+    var resource: *Resource = alloc_resorce() catch return e.enif_make_badarg(env);
     resource.value = 0;
 
-    var result: e.ERL_NIF_TERM = e.enif_make_resource(env, ptr);
-    e.enif_release_resource(ptr);
+    var result: e.ERL_NIF_TERM = e.enif_make_resource(env, resource);
+    e.enif_release_resource(resource);
 
-    return e.enif_make_tuple2(env, e.enif_make_atom(env, "ok"), result);
+    return result;
 }
 
 export fn create1(env: ?*e.ErlNifEnv, _: c_int, argv: [*c]const e.ERL_NIF_TERM) e.ERL_NIF_TERM {
-    var value: c_int = undefined;
-
-    if (e.enif_get_int(env, argv[0], &value) != 1) {
-        return e.enif_make_badarg(env);
-    }
-
-    var ptr: ?*anyopaque = e.enif_alloc_resource(__resource__, @sizeOf(Resource));
-    var resource: *Resource = @ptrCast(*Resource, @alignCast(@alignOf(*Resource), ptr));
+    var value: c_int = get_int(env, argv[0]) catch return e.enif_make_badarg(env);
+    var resource: *Resource = alloc_resorce() catch return e.enif_make_badarg(env);
     resource.value = value;
 
-    var result: e.ERL_NIF_TERM = e.enif_make_resource(env, ptr);
-    e.enif_release_resource(ptr);
+    var result: e.ERL_NIF_TERM = e.enif_make_resource(env, resource);
+    e.enif_release_resource(resource);
 
-    return e.enif_make_tuple2(env, e.enif_make_atom(env, "ok"), result);
+    return result;
 }
 
 export fn fetch(env: ?*e.ErlNifEnv, _: c_int, argv: [*c]const e.ERL_NIF_TERM) e.ERL_NIF_TERM {
-    var ptr: ?*anyopaque = undefined;
-
-    if (e.enif_get_resource(env, argv[0], __resource__, @ptrCast([*c]?*anyopaque, &ptr)) != 1) {
-        return e.enif_make_badarg(env);
-    }
-
-    var resource: *Resource = @ptrCast(*Resource, @alignCast(@alignOf(*Resource), ptr));
+    var resource: *Resource = get_resource(env, argv[0]) catch return e.enif_make_badarg(env);
     return e.enif_make_int(env, resource.value);
 }
 
 export fn set(env: ?*e.ErlNifEnv, _: c_int, argv: [*c]const e.ERL_NIF_TERM) e.ERL_NIF_TERM {
+    var resource: *Resource = get_resource(env, argv[0]) catch return e.enif_make_badarg(env);
+    var value: c_int = get_int(env, argv[1]) catch return e.enif_make_badarg(env);
+    resource.value = value;
+    return e.enif_make_atom(env, "ok");
+}
+
+fn alloc_resorce() error{OutOfMemory}!*Resource {
+    var ptr: *anyopaque = e.enif_alloc_resource(__resource__, @sizeOf(Resource)) orelse return error.OutOfMemory;
+    var resource: *Resource = @ptrCast(*Resource, @alignCast(@alignOf(*Resource), ptr));
+    return resource;
+}
+
+fn get_resource(env: ?*e.ErlNifEnv, term: e.ERL_NIF_TERM) Error!*Resource {
     var ptr: ?*anyopaque = undefined;
-    var value: c_int = undefined;
 
-    if (e.enif_get_resource(env, argv[0], __resource__, @ptrCast([*c]?*anyopaque, &ptr)) != 1) {
-        return e.enif_make_badarg(env);
-    }
-
-    if (e.enif_get_int(env, argv[1], &value) != 1) {
-        return e.enif_make_badarg(env);
+    if (e.enif_get_resource(env, term, __resource__, @ptrCast([*c]?*anyopaque, &ptr)) != 1) {
+        return Error.FunctionClauseError;
     }
 
     var resource: *Resource = @ptrCast(*Resource, @alignCast(@alignOf(*Resource), ptr));
-    resource.value = value;
-    return e.enif_make_atom(env, "ok");
+    return resource;
+}
+
+fn get_int(env: ?*e.ErlNifEnv, term: e.ERL_NIF_TERM) Error!c_int {
+    var i: c_int = undefined;
+    if (e.enif_get_int(env, term, &i) != 1) return Error.FunctionClauseError;
+    return i;
 }
 
 var nif_funcs = [_]e.ErlNifFunc{
